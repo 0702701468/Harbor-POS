@@ -1,0 +1,2 @@
+HarborPOS Railway Fix 4.0.3
+Fixes cloudToken initialization order before migrate/save runs.

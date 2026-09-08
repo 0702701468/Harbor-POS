@@ -1,4 +1,6 @@
 const KEY='harborpos_v3';
+let cloudToken='';
+try{cloudToken=localStorage.getItem('harborpos_cloud_token')||''}catch{}
 const today=()=>new Date().toISOString().slice(0,10);
 const uid=p=>p+Date.now()+Math.floor(Math.random()*999);
 const seed={
@@ -24,7 +26,6 @@ const seed={
 };
 function load(){try{const x=JSON.parse(localStorage.getItem(KEY));return x||structuredClone(seed)}catch{return structuredClone(seed)}}
 let state=load();
-let cloudToken='';
 let cloudSaveTimer=null;
 function migrate(){const s=structuredClone(seed),old=state;for(const k of Object.keys(s)) if(old[k]!==undefined)s[k]=old[k];s.settings=Object.assign(structuredClone(seed.settings),old.settings||{});s.receipt=s.receipt||{};state=s;if(!state.levels)state.levels=structuredClone(seed.levels);if(!state.branches?.length)state.branches=structuredClone(seed.branches);if(!state.currentBranchId||!state.branches.some(b=>b.id===state.currentBranchId))state.currentBranchId=state.branches[0].id;if(!state.features.branches)state.features.branches=true;if(!state.stockVerifications)state.stockVerifications=[];
 for(const k of ['customers','suppliers','stockConversions','stockVerifications','creditSales','creditRepayments','orders','stays','reservations','payments','stockMovements']){if(Array.isArray(state[k]))state[k].forEach(x=>{if(x&&x.branchId==null)x.branchId=state.currentBranchId||'b1'})}
@@ -34,9 +35,8 @@ const $=id=>document.getElementById(id), esc=s=>String(s??'').replace(/[&<>"']/g
 function getSessionUserId(){try{return sessionStorage.getItem('harborpos_user_id')||localStorage.getItem('harborpos_user_id')||''}catch{return localStorage.getItem('harborpos_user_id')||''}} function setSessionUserId(id){try{sessionStorage.setItem('harborpos_user_id',id)}catch{} try{localStorage.setItem('harborpos_user_id',id)}catch{}} function clearSessionUserId(){try{sessionStorage.removeItem('harborpos_user_id')}catch{} try{localStorage.removeItem('harborpos_user_id')}catch{}} const sessionUserId=getSessionUserId; const currentUser=()=>state.users.find(u=>u.id===sessionUserId())||null; const branch=()=>{const u=currentUser();const b=state.branches.find(x=>x.id===state.currentBranchId)||state.branches[0]; if(u?.branchIds?.length && !u.branchIds.includes(b.id)) return state.branches.find(x=>x.id===u.branchIds[0])||b; return b};
 function inBranch(record){return !record||record.branchId===state.currentBranchId}
 function branchData(arr){return (arr||[]).filter(x=>inBranch(x))}
-cloudToken=localStorage.getItem('harborpos_cloud_token')||'';
 async function cloudApi(path,options={}){const opts={...options,headers:{'Content-Type':'application/json',...(options.headers||{})}};if(cloudToken)opts.headers.Authorization=`Bearer ${cloudToken}`;const r=await fetch(path,opts);let body={};try{body=await r.json()}catch{}if(!r.ok)throw new Error(body.error||`Request failed (${r.status})`);return body;}
-function queueCloudSave(){if(!cloudToken)return;clearTimeout(cloudSaveTimer);cloudSaveTimer=setTimeout(async()=>{try{await cloudApi('/api/cloud/state',{method:'PUT',body:JSON.stringify(state)});localStorage.setItem('harborpos_last_cloud_sync',new Date().toISOString());}catch(e){console.warn('Cloud sync failed:',e.message)}},250)}
+function queueCloudSave(){if(typeof cloudToken==='undefined'||!cloudToken)return;clearTimeout(cloudSaveTimer);cloudSaveTimer=setTimeout(async()=>{try{await cloudApi('/api/cloud/state',{method:'PUT',body:JSON.stringify(state)});localStorage.setItem('harborpos_last_cloud_sync',new Date().toISOString());}catch(e){console.warn('Cloud sync failed:',e.message)}},250)}
 function save(){localStorage.setItem(KEY,JSON.stringify(state));queueCloudSave()}
 function audit(action,entity,detail=''){state.audit.unshift({id:uid('AUD-'),at:new Date().toISOString(),user:currentUser()?.name||'System',action,entity,detail,branchId:state.currentBranchId});state.audit=state.audit.slice(0,500);save()}
 function toast(t){const e=$('toast');if(!e)return;e.textContent=t;e.style.display='block';clearTimeout(toaster);toaster=setTimeout(()=>e.style.display='none',2500)}
